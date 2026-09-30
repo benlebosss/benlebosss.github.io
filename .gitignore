@@ -1,0 +1,11 @@
+# Only the website is published — everything else in this folder
+# (photos, videos, RIB, applications, zips…) stays on this computer.
+/*
+!/.gitignore
+!/index.html
+!/style.css
+!/pacman.html
+!/slots.html
+!/js/
+!/assets/
+assets/LISEZMOI.txt
