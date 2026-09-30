@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Jackpot — ECE World Casino</title>
+  <meta name="description" content="The ECE World jackpot slot machine, remade for the browser by Benoit Quaranta." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Rubik:wght@700;800&family=Inter:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --gold: #ffd35c; --gold2: #f7a928; --red: #d2232a; --deep: #140522; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      min-height: 100%; overflow-x: hidden;
+      background:
+        radial-gradient(90% 60% at 50% 0%, rgba(255, 80, 180, .22), transparent 70%),
+        radial-gradient(120% 90% at 50% 100%, #3b0a4f 0%, #12031c 60%, #07010c 100%);
+      color: #fff; font-family: 'Inter', sans-serif;
+      display: flex; flex-direction: column; align-items: center;
+      user-select: none; -webkit-user-select: none; touch-action: manipulation;
+    }
+    header { width: 100%; max-width: 720px; display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 4px; }
+    .back { font-weight: 600; font-size: 13px; color: rgba(255,255,255,.85); text-decoration: none; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); }
+    .back:hover { background: rgba(255,255,255,.16); }
+    .icon { width: 38px; height: 38px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.15); color: #fff; font-size: 16px; cursor: pointer; }
+
+    .machine {
+      width: clamp(300px, min(94vw, calc(100vh - 260px)), 600px); margin: 8px 0 18px;
+      padding: 16px 18px 20px; border-radius: 34px;
+      background: linear-gradient(180deg, #e0333a 0%, #a3141b 55%, #6b0a10 100%);
+      box-shadow: inset 0 3px 0 rgba(255,255,255,.35), inset 0 -6px 0 rgba(0,0,0,.3), 0 0 0 6px var(--gold2), 0 0 0 9px #7a4a05, 0 30px 80px rgba(0,0,0,.6), 0 0 90px rgba(255, 90, 60, .25);
+      position: relative;
+    }
+    .marquee {
+      position: relative; text-align: center; border-radius: 20px; padding: 14px 10px 12px; margin-bottom: 14px;
+      background: linear-gradient(180deg, #2a0b3d, #140522);
+      box-shadow: inset 0 0 0 3px var(--gold), inset 0 0 30px rgba(255, 60, 200, .35);
+    }
+    .marquee h1 { font-family: 'Rubik', sans-serif; font-weight: 800; font-size: clamp(26px, 7vw, 44px); letter-spacing: .04em; color: var(--gold);
+      text-shadow: 0 2px 0 #9b5a00, 0 0 18px rgba(255, 190, 60, .8); }
+    .marquee p { font-family: 'Silkscreen', monospace; font-size: 11px; letter-spacing: .25em; color: #ff9bf0; }
+    .bulbs { position: absolute; inset: 5px; pointer-events: none; }
+    .bulbs i { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #ffe9a8; box-shadow: 0 0 8px #ffd35c; animation: bulb 1s steps(2) infinite; }
+    @keyframes bulb { 50% { background: #7a5a1a; box-shadow: none; } }
+
+    .window { position: relative; border-radius: 18px; padding: 10px; background: #1b0b12; box-shadow: inset 0 0 0 3px var(--gold), inset 0 6px 18px rgba(0,0,0,.8); }
+    canvas { display: block; width: 100%; border-radius: 10px; background: #fbf6ea; }
+    .lines-l, .lines-r { position: absolute; top: 10px; bottom: 10px; display: flex; flex-direction: column; justify-content: space-around; }
+    .lines-l { left: -12px; } .lines-r { right: -12px; }
+    .lines-l b, .lines-r b { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 700 10px 'Silkscreen', monospace; background: #333; color: #777; box-shadow: 0 0 0 2px #111; transition: all .2s; }
+    .lines-l b.on, .lines-r b.on { background: var(--gold); color: #5a2a00; box-shadow: 0 0 0 2px #7a4a05, 0 0 10px var(--gold); }
+
+    .panel { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 14px; }
+    .lcd { border-radius: 12px; padding: 7px 10px; background: #0d0306; box-shadow: inset 0 0 0 2px #3d0c12; text-align: center; }
+    .lcd small { display: block; font: 700 9px 'Silkscreen', monospace; letter-spacing: .15em; color: #ff8f8f; }
+    .lcd span { font: 700 clamp(16px, 4.5vw, 22px) 'Silkscreen', monospace; color: var(--gold); text-shadow: 0 0 8px rgba(255, 200, 60, .6); }
+    .controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+    .bet { display: flex; align-items: center; gap: 8px; }
+    .btn { border: 0; cursor: pointer; font: 700 14px 'Inter', sans-serif; color: #3a1500; background: linear-gradient(180deg, #ffe38a, #f2a91f); border-radius: 12px; padding: 10px 14px; box-shadow: 0 4px 0 #8a5200, 0 6px 14px rgba(0,0,0,.35); transition: transform .08s, box-shadow .08s; }
+    .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #8a5200; }
+    .btn:disabled { filter: grayscale(.8) brightness(.7); cursor: default; }
+    .spin {
+      width: 96px; height: 96px; border-radius: 50%; font: 800 20px 'Rubik', sans-serif; letter-spacing: .05em; color: #fff;
+      background: radial-gradient(circle at 35% 30%, #ff7a6b, #d2232a 55%, #7c0f14);
+      box-shadow: 0 6px 0 #4d0509, 0 0 0 5px var(--gold), 0 0 0 8px #7a4a05, 0 12px 26px rgba(0,0,0,.5);
+      border: 0; cursor: pointer; transition: transform .1s, box-shadow .1s;
+    }
+    .spin:active { transform: translateY(4px); box-shadow: 0 2px 0 #4d0509, 0 0 0 5px var(--gold), 0 0 0 8px #7a4a05; }
+    .spin:disabled { filter: brightness(.75); cursor: default; }
+    .msg { min-height: 22px; margin-top: 12px; text-align: center; font: 700 14px 'Silkscreen', monospace; color: var(--gold); text-shadow: 0 0 10px rgba(255,200,60,.7); }
+
+    details.pay { width: min(94vw, 600px); margin-bottom: 26px; border-radius: 16px; background: rgba(255,255,255,.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+    details.pay summary { cursor: pointer; padding: 12px 16px; font-weight: 600; font-size: 14px; }
+    .ptable { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; padding: 4px 14px 16px; }
+    .prow { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 10px; background: rgba(0,0,0,.25); font-size: 12px; }
+    .prow canvas { width: 40px; height: 40px; border-radius: 8px; flex: none; }
+    .prow b { color: var(--gold); }
+    .help { padding: 0 16px 14px; font-size: 12px; color: rgba(255,255,255,.6); line-height: 1.5; }
+    .coin { position: fixed; z-index: 9; width: 22px; height: 22px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle at 35% 30%, #fff3b0, #ffd35c 45%, #c98a00); box-shadow: 0 0 8px rgba(255, 210, 90, .8); }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="back" href="index.html#/project/world">← Portfolio</a>
+    <button class="icon" id="mute" title="Sound on/off" aria-label="Sound on/off">🔊</button>
+  </header>
+
+  <main class="machine" id="machine">
+    <div class="marquee">
+      <div class="bulbs" id="bulbs"></div>
+      <h1>JACKPOT</h1>
+      <p>ECE WORLD CASINO</p>
+    </div>
+    <div class="window">
+      <div class="lines-l"><b data-l="2">2</b><b data-l="4">4</b><b data-l="1">1</b><b data-l="5">5</b><b data-l="3">3</b></div>
+      <canvas id="reels" aria-label="Slot machine reels"></canvas>
+      <div class="lines-r"><b data-l="2">2</b><b data-l="5">5</b><b data-l="1">1</b><b data-l="4">4</b><b data-l="3">3</b></div>
+    </div>
+    <div class="panel">
+      <div class="lcd"><small>CREDITS</small><span id="credits">100</span></div>
+      <div class="lcd"><small>BET</small><span id="bet">1</span></div>
+      <div class="lcd"><small>WIN</small><span id="win">0</span></div>
+    </div>
+    <div class="controls">
+      <div class="bet">
+        <button class="btn" id="minus" aria-label="Lower bet">−</button>
+        <button class="btn" id="plus" aria-label="Raise bet">+</button>
+        <button class="btn" id="max">MAX</button>
+      </div>
+      <button class="spin" id="spin">SPIN</button>
+    </div>
+    <div class="msg" id="msg">PRESS SPIN</div>
+  </main>
+
+  <details class="pay">
+    <summary>Paytable &amp; rules</summary>
+    <div class="ptable" id="ptable"></div>
+    <p class="help">Bet 1 to 5 coins: each coin activates one line (1 middle, 2 top, 3 bottom, 4 &amp; 5 diagonals).
+      Three identical symbols on an active line pay the table × 1 coin. The jackpot symbol also pays when 1 or 2 of them land on a line.
+      Space / Enter to spin, ←/→ to change the bet.</p>
+  </details>
+
+<script>
+(() => {
+  /* ------------------------------------------------------------------
+     Symbols. Drop your own sprites in assets/slots/ with these file
+     names (the Meowth + Pokémon heads of the original game) and they
+     replace the drawn casino symbols automatically.
+     ------------------------------------------------------------------ */
+  const SYMBOLS = [
+    { id: 'meowth',     label: 'Meowth',     alt: 'Gold coin', weight: 2, pay: 100, draw: 'coin' },
+    { id: 'pikachu',    label: 'Pikachu',    alt: 'Lucky 7',   weight: 3, pay: 50,  draw: 'seven' },
+    { id: 'charmander', label: 'Charmander', alt: 'Cherries',  weight: 5, pay: 25,  draw: 'cherry' },
+    { id: 'bulbasaur',  label: 'Bulbasaur',  alt: 'Bell',      weight: 6, pay: 20,  draw: 'bell' },
+    { id: 'squirtle',   label: 'Squirtle',   alt: 'Diamond',   weight: 7, pay: 15,  draw: 'diamond' },
+    { id: 'jigglypuff', label: 'Jigglypuff', alt: 'Lemon',     weight: 7, pay: 10,  draw: 'lemon' },
+  ];
+  const JACKPOT_PARTIAL = { 1: 1, 2: 10 };      // jackpot symbols anywhere on a line
+  const LINES = [[1, 1, 1], [0, 0, 0], [2, 2, 2], [0, 1, 2], [2, 1, 0]]; // row per reel
+  const LINE_COLORS = ['#ff3b5c', '#3ddc84', '#44a0ff', '#ffb020', '#c04dff'];
+
+  const $ = id => document.getElementById(id);
+  const cv = $('reels'), g = cv.getContext('2d');
+  const TAU = Math.PI * 2;
+
+  /* ---------------- sprites (optional) ---------------- */
+  SYMBOLS.forEach(s => {
+    const img = new Image();
+    img.onload = () => { s.img = img; buildPaytable(); };
+    img.src = `assets/slots/${s.id}.png`;
+  });
+
+  /* ---------------- drawn fallback symbols ---------------- */
+  function drawSymbol(ctx, s, x, y, size) {
+    const cx = x + size / 2, cy = y + size / 2, r = size * 0.36;
+    if (s.img) {
+      ctx.imageSmoothingEnabled = s.img.width > size;
+      const k = Math.min(size * 0.86 / s.img.width, size * 0.86 / s.img.height);
+      const w = s.img.width * k, h = s.img.height * k;
+      ctx.drawImage(s.img, cx - w / 2, cy - h / 2, w, h);
+      return;
+    }
+    ctx.save();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    switch (s.draw) {
+      case 'coin': {
+        const gr = ctx.createRadialGradient(cx - r * .3, cy - r * .35, r * .1, cx, cy, r);
+        gr.addColorStop(0, '#fff6c2'); gr.addColorStop(.45, '#ffd35c'); gr.addColorStop(1, '#b87700');
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+        ctx.strokeStyle = '#8a5200'; ctx.lineWidth = size * .035; ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, r * .78, 0, TAU); ctx.strokeStyle = 'rgba(138,82,0,.6)'; ctx.stroke();
+        star(ctx, cx, cy, r * .5, r * .22, '#fff1a6', '#8a5200', size);
+        break;
+      }
+      case 'seven': {
+        ctx.font = `800 ${size * .78}px Rubik, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = size * .07; ctx.strokeStyle = '#f2a91f'; ctx.strokeText('7', cx, cy + size * .03);
+        ctx.fillStyle = '#d2232a'; ctx.fillText('7', cx, cy + size * .03);
+        break;
+      }
+      case 'cherry': {
+        ctx.strokeStyle = '#2f8a3a'; ctx.lineWidth = size * .045;
+        ctx.beginPath(); ctx.moveTo(cx - r * .45, cy + r * .2); ctx.quadraticCurveTo(cx - r * .1, cy - r * .8, cx + r * .4, cy - r * .85);
+        ctx.moveTo(cx + r * .45, cy + r * .3); ctx.quadraticCurveTo(cx + r * .45, cy - r * .3, cx + r * .4, cy - r * .85); ctx.stroke();
+        ctx.fillStyle = '#3ddc84'; ctx.beginPath(); ctx.ellipse(cx + r * .6, cy - r * .85, r * .35, r * .16, -.4, 0, TAU); ctx.fill();
+        for (const [dx, dy] of [[-.45, .45], [.45, .55]]) {
+          const gr = ctx.createRadialGradient(cx + dx * r - r * .12, cy + dy * r - r * .12, r * .05, cx + dx * r, cy + dy * r, r * .42);
+          gr.addColorStop(0, '#ff8a8a'); gr.addColorStop(1, '#a3141b');
+          ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx + dx * r, cy + dy * r, r * .42, 0, TAU); ctx.fill();
+        }
+        break;
+      }
+      case 'bell': {
+        const gr = ctx.createLinearGradient(cx - r, 0, cx + r, 0);
+        gr.addColorStop(0, '#c98a00'); gr.addColorStop(.4, '#ffe38a'); gr.addColorStop(1, '#b87700');
+        ctx.fillStyle = gr; ctx.beginPath();
+        ctx.moveTo(cx - r * .95, cy + r * .6); ctx.quadraticCurveTo(cx - r * .7, cy + r * .3, cx - r * .65, cy - r * .2);
+        ctx.quadraticCurveTo(cx - r * .6, cy - r * .95, cx, cy - r * .95); ctx.quadraticCurveTo(cx + r * .6, cy - r * .95, cx + r * .65, cy - r * .2);
+        ctx.quadraticCurveTo(cx + r * .7, cy + r * .3, cx + r * .95, cy + r * .6); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#8a5200'; ctx.lineWidth = size * .03; ctx.stroke();
+        ctx.fillStyle = '#8a5200'; ctx.beginPath(); ctx.arc(cx, cy + r * .78, r * .2, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy - r * 1.02, r * .14, 0, TAU); ctx.fill();
+        break;
+      }
+      case 'diamond': {
+        const pts = [[0, -.8], [.9, -.25], [0, .95], [-.9, -.25]];
+        const gr = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+        gr.addColorStop(0, '#bff3ff'); gr.addColorStop(.5, '#3fa9ff'); gr.addColorStop(1, '#1b3fd6');
+        ctx.fillStyle = gr; ctx.beginPath(); pts.forEach(([a, b], i) => ctx[i ? 'lineTo' : 'moveTo'](cx + a * r, cy + b * r)); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#0f2a8a'; ctx.lineWidth = size * .03; ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = size * .018;
+        ctx.beginPath(); ctx.moveTo(cx - .9 * r, cy - .25 * r); ctx.lineTo(cx + .9 * r, cy - .25 * r); ctx.moveTo(cx - .35 * r, cy - .25 * r); ctx.lineTo(cx, cy + .95 * r); ctx.lineTo(cx + .35 * r, cy - .25 * r); ctx.stroke();
+        break;
+      }
+      case 'lemon': {
+        const gr = ctx.createRadialGradient(cx - r * .3, cy - r * .3, r * .1, cx, cy, r);
+        gr.addColorStop(0, '#fffbd1'); gr.addColorStop(.5, '#ffe23a'); gr.addColorStop(1, '#c9a600');
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(cx, cy, r * .95, r * .7, -.35, 0, TAU); ctx.fill();
+        ctx.strokeStyle = '#9a7c00'; ctx.lineWidth = size * .03; ctx.stroke();
+        ctx.fillStyle = '#3ddc84'; ctx.beginPath(); ctx.ellipse(cx + r * .55, cy - r * .62, r * .3, r * .13, -.6, 0, TAU); ctx.fill();
+        break;
+      }
+    }
+    ctx.restore();
+  }
+  function star(ctx, cx, cy, R, r, fill, stroke, size) {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? r : R; ctx.lineTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad); }
+    ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = stroke; ctx.lineWidth = size * .02; ctx.stroke();
+  }
+
+  /* ---------------- reels ---------------- */
+  const N = SYMBOLS.reduce((a, s) => a + s.weight, 0);
+  function makeStrip() {
+    const strip = [];
+    SYMBOLS.forEach((s, i) => { for (let k = 0; k < s.weight; k++) strip.push(i); });
+    for (let i = strip.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [strip[i], strip[j]] = [strip[j], strip[i]]; }
+    return strip;
+  }
+  const reels = [0, 1, 2].map(() => ({ strip: makeStrip(), offset: Math.floor(Math.random() * N), from: 0, to: 0, t0: 0, dur: 0, spinning: false }));
+  const at = (reel, row) => reel.strip[(((Math.round(reel.offset) + row) % N) + N) % N];
+
+  /* ---------------- state ---------------- */
+  let credits = 100, bet = 1, lastWin = 0, spinning = false, winLines = [], flashT = 0, muted = false;
+  try { credits = +(localStorage.getItem('slots-credits') ?? 100); muted = localStorage.getItem('slots-muted') === '1'; } catch (e) { /* storage unavailable */ }
+  if (!(credits >= 0)) credits = 100;
+  const save = () => { try { localStorage.setItem('slots-credits', credits); localStorage.setItem('slots-muted', muted ? '1' : '0'); } catch (e) { /* ignore */ } };
+
+  /* ---------------- sound (WebAudio blips, no files) ---------------- */
+  let ac = null;
+  function tone(freq, dur = 0.08, type = 'square', vol = 0.05, when = 0) {
+    if (muted) return;
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), gn = ac.createGain(), t = ac.currentTime + when;
+    o.type = type; o.frequency.value = freq;
+    gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(gn).connect(ac.destination); o.start(t); o.stop(t + dur);
+  }
+  const jingle = big => (big ? [523, 659, 784, 1046, 784, 1046, 1318] : [659, 784, 1046]).forEach((f, i) => tone(f, 0.14, 'square', 0.06, i * 0.1));
+
+  /* ---------------- UI ---------------- */
+  function ui() {
+    $('credits').textContent = credits; $('bet').textContent = bet; $('win').textContent = lastWin;
+    document.querySelectorAll('[data-l]').forEach(b => b.classList.toggle('on', +b.dataset.l <= bet));
+    $('spin').disabled = spinning;
+    ['minus', 'plus', 'max'].forEach(id => { $(id).disabled = spinning; });
+    $('mute').textContent = muted ? '🔇' : '🔊';
+  }
+  function setBet(v) { if (spinning) return; bet = Math.max(1, Math.min(5, v)); tone(440 + bet * 60, 0.05); ui(); }
+  $('minus').onclick = () => setBet(bet - 1);
+  $('plus').onclick = () => setBet(bet + 1);
+  $('max').onclick = () => setBet(5);
+  $('mute').onclick = () => { muted = !muted; save(); ui(); };
+  $('spin').onclick = spin;
+  addEventListener('keydown', e => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); spin(); }
+    if (e.key === 'ArrowLeft') setBet(bet - 1);
+    if (e.key === 'ArrowRight') setBet(bet + 1);
+  });
+
+  // marquee bulbs
+  (() => {
+    const b = $('bulbs'), n = 18;
+    for (let i = 0; i < n; i++) {
+      const t = i / n, el = document.createElement('i');
+      const per = t < .5 ? t * 2 : (t - .5) * 2, top = t < .5;
+      el.style.left = `calc(${per * 100}% - 3px)`; el.style[top ? 'top' : 'bottom'] = '0';
+      el.style.animationDelay = (i % 2) * 0.5 + 's';
+      b.appendChild(el);
+    }
+  })();
+
+  /* ---------------- spin & payout ---------------- */
+  function spin() {
+    if (spinning) return;
+    if (credits < bet) {
+      if (credits === 0) { credits = 100; $('msg').textContent = 'FREE REFILL: +100 CREDITS'; save(); ui(); return; }
+      bet = credits; ui();
+    }
+    credits -= bet; lastWin = 0; winLines = []; spinning = true; save(); ui();
+    $('msg').textContent = 'GOOD LUCK!';
+    const now = performance.now();
+    reels.forEach((r, k) => {
+      const start = Math.round(r.offset);
+      const final = Math.floor(Math.random() * N);
+      let dist = 22 + k * 7;
+      dist += (((final - (start + dist)) % N) + N) % N;
+      Object.assign(r, { from: start, to: start + dist, t0: now, dur: 1100 + k * 380, spinning: true, lastCell: start });
+    });
+    tone(220, 0.12, 'sawtooth', 0.04);
+  }
+  const easeOutBack = p => { const c1 = 1.1, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+
+  function evaluate() {
+    let total = 0; winLines = [];
+    for (let l = 0; l < bet; l++) {
+      const syms = LINES[l].map((row, k) => at(reels[k], row));
+      let pay = 0;
+      if (syms[0] === syms[1] && syms[1] === syms[2]) pay = SYMBOLS[syms[0]].pay;
+      else {
+        const j = syms.filter(s => s === 0).length;
+        if (j) pay = JACKPOT_PARTIAL[j];
+      }
+      if (pay) { total += pay; winLines.push({ l, pay, three: syms[0] === syms[1] && syms[1] === syms[2] }); }
+    }
+    lastWin = total; credits += total; save();
+    const jackpot = winLines.some(w => w.three && at(reels[0], LINES[w.l][0]) === 0);
+    if (total) {
+      $('msg').textContent = jackpot ? `★ JACKPOT! +${total} ★` : `YOU WIN ${total}!`;
+      jingle(jackpot || total >= 25); flashT = performance.now(); coins(Math.min(40, 6 + total / 2));
+    } else $('msg').textContent = credits === 0 ? 'OUT OF CREDITS — SPIN FOR A REFILL' : 'TRY AGAIN';
+    ui();
+  }
+
+  function coins(n) {
+    const box = cv.getBoundingClientRect();
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement('div'); c.className = 'coin'; document.body.appendChild(c);
+      const x = box.left + box.width / 2, y = box.top + box.height / 2;
+      const vx = (Math.random() - .5) * 700, vy = -300 - Math.random() * 500, t0 = performance.now() + i * 20;
+      const step = now => {
+        const t = Math.max(0, (now - t0) / 1000);
+        c.style.transform = `translate(${x + vx * t - 11}px, ${y + vy * t + 900 * t * t - 11}px) rotateY(${t * 720}deg)`;
+        if (t < 2) requestAnimationFrame(step); else c.remove();
+      };
+      requestAnimationFrame(step);
+    }
+  }
+
+  /* ---------------- render ---------------- */
+  let cell = 100;
+  function resize() {
+    const w = cv.clientWidth, dpr = Math.min(devicePixelRatio || 1, 2);
+    cell = w / 3;
+    cv.style.height = cell * 3 + 'px';
+    cv.width = Math.round(w * dpr); cv.height = Math.round(cell * 3 * dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function frame(now) {
+    const W = cell * 3, H = cell * 3;
+    // advance reels
+    let anyStopped = false;
+    for (const r of reels) {
+      if (!r.spinning) continue;
+      const p = Math.min(1, (now - r.t0) / r.dur);
+      r.offset = r.from + (r.to - r.from) * easeOutBack(p);
+      const c = Math.floor(r.offset);
+      if (c !== r.lastCell) { r.lastCell = c; tone(900 + Math.random() * 200, 0.018, 'square', 0.015); }
+      if (p >= 1) { r.offset = r.to; r.spinning = false; anyStopped = true; tone(160, 0.1, 'triangle', 0.08); }
+    }
+    if (spinning && anyStopped && reels.every(r => !r.spinning)) { spinning = false; evaluate(); }
+
+    g.clearRect(0, 0, W, H);
+    reels.forEach((r, k) => {
+      const x = k * cell;
+      const grd = g.createLinearGradient(0, 0, 0, H);
+      grd.addColorStop(0, '#d9d2c2'); grd.addColorStop(.18, '#fbf6ea'); grd.addColorStop(.82, '#fbf6ea'); grd.addColorStop(1, '#d9d2c2');
+      g.fillStyle = grd; g.fillRect(x, 0, cell, H);
+      g.save(); g.beginPath(); g.rect(x, 0, cell, H); g.clip();
+      const speed = r.spinning ? Math.min(1, Math.abs(r.to - r.offset) / 8) : 0;
+      const base = Math.floor(r.offset), frac = r.offset - base;
+      for (let i = -1; i <= 3; i++) {
+        const idx = (((base + i) % N) + N) % N;
+        const y = (i - frac) * cell;
+        if (speed > .3) { g.globalAlpha = 0.35; drawSymbol(g, SYMBOLS[r.strip[idx]], x, y - cell * .12, cell); g.globalAlpha = 1; }
+        drawSymbol(g, SYMBOLS[r.strip[idx]], x, y, cell);
+      }
+      g.restore();
+      // reel separators + glass shading
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x + cell - 1.5, 0, 3, H);
+    });
+    const shade = g.createLinearGradient(0, 0, 0, H);
+    shade.addColorStop(0, 'rgba(0,0,0,.35)'); shade.addColorStop(.25, 'rgba(0,0,0,0)'); shade.addColorStop(.75, 'rgba(0,0,0,0)'); shade.addColorStop(1, 'rgba(0,0,0,.35)');
+    g.fillStyle = shade; g.fillRect(0, 0, W, H);
+
+    // winning lines
+    if (!spinning && winLines.length) {
+      const blink = Math.floor((now - flashT) / 280) % 2 === 0;
+      winLines.forEach(w => {
+        const col = LINE_COLORS[w.l];
+        g.strokeStyle = col; g.lineWidth = cell * .05; g.shadowColor = col; g.shadowBlur = 14; g.lineCap = 'round'; g.lineJoin = 'round';
+        g.beginPath();
+        LINES[w.l].forEach((row, k) => g[k ? 'lineTo' : 'moveTo'](k * cell + cell / 2, row * cell + cell / 2));
+        g.stroke(); g.shadowBlur = 0;
+        if (blink) LINES[w.l].forEach((row, k) => {
+          g.strokeStyle = col; g.lineWidth = 4; g.strokeRect(k * cell + 5, row * cell + 5, cell - 10, cell - 10);
+        });
+      });
+    } else if (!spinning) {
+      // idle hint: middle line
+      g.strokeStyle = 'rgba(210,35,42,.25)'; g.lineWidth = 2; g.setLineDash([8, 8]);
+      g.beginPath(); g.moveTo(0, H / 2); g.lineTo(W, H / 2); g.stroke(); g.setLineDash([]);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------------- paytable ---------------- */
+  function buildPaytable() {
+    $('ptable').innerHTML = '';
+    SYMBOLS.forEach((s, i) => {
+      const row = document.createElement('div'); row.className = 'prow';
+      const c = document.createElement('canvas'); c.width = c.height = 80;
+      const cx = c.getContext('2d'); cx.fillStyle = '#fbf6ea'; cx.fillRect(0, 0, 80, 80); drawSymbol(cx, s, 0, 0, 80);
+      const name = s.img ? s.label : s.alt;
+      row.append(c);
+      row.insertAdjacentHTML('beforeend', `<div>${name}${i === 0 ? ' — <b>JACKPOT</b>' : ''}<br>3× = <b>${s.pay}</b>${i === 0 ? ` · 2× = <b>${JACKPOT_PARTIAL[2]}</b> · 1× = <b>${JACKPOT_PARTIAL[1]}</b>` : ''}</div>`);
+      $('ptable').append(row);
+    });
+  }
+
+  addEventListener('resize', resize);
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => { resize(); buildPaytable(); ui(); requestAnimationFrame(frame); });
+})();
+</script>
+</body>
+</html>

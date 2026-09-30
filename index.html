@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Benoit Quaranta — Portfolio</title>
+  <meta name="description" content="Engineer student portfolio — a spatial computing experience built with Three.js." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Nunito:wght@800&family=Silkscreen:wght@400;700&family=Rubik:wght@800&family=Montserrat:wght@700&family=JetBrains+Mono&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="js/content.js"></script>
+  <script src="js/art.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="webgl"></canvas>
+  <div id="css3d"></div>
+  <div class="vignette"></div>
+
+  <div class="loader" id="loader"><span>Loading</span></div>
+  <a class="badge" href="https://threejs.org" target="_blank" rel="noopener"><i></i>Built with Three.js</a>
+
+  <!-- Navigation used on phones: fixed at the bottom of the screen -->
+  <nav class="tabbar" id="tabbar" aria-label="Main"></nav>
+
+  <!-- ============ Panels (moved into 3D space by CSS3DRenderer) ============ -->
+  <div id="panel-sources">
+    <nav class="panel glass nav" id="p-nav" aria-label="Main"></nav>
+    <section class="panel glass center" id="p-home"></section>
+    <section class="panel glass grid-panel" id="p-projects"></section>
+    <section class="panel glass media-panel" id="p-media"></section>
+    <section class="panel glass info-panel" id="p-info"></section>
+    <aside class="panel glass notes" id="p-notes" aria-label="Notes">
+      <div class="notes-head">
+        <span>Notes</span>
+        <button class="icon-btn" data-view="home" title="Back to home" aria-label="Back to home">
+          <svg viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4l-8.5 8.5"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+        </button>
+      </div>
+      <div class="note-body" id="note-body"></div>
+    </aside>
+    <section class="panel glass pmain" id="p-pmain"></section>
+    <section class="panel glass pphoto" id="p-pphoto"></section>
+    <section class="panel glass career" id="p-career"></section>
+    <section class="panel glass contact" id="p-contact"></section>
+    <footer class="panel glass dock" id="p-dock">
+      <a target="_blank" rel="noopener" data-link="linkedin">Linkedin</a>
+      <a data-link="email">Email</a>
+      <a target="_blank" rel="noopener" data-link="github">Github</a>
+      <a data-link="phone">Phone</a>
+    </footer>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+    import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+    import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+
+    const DATA = window.PORTFOLIO;
+
+    /* =====================================================================
+       Helpers
+       ===================================================================== */
+    function mulberry32(a) {
+      return function () {
+        a |= 0; a = (a + 0x6d2b79f5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const rng = mulberry32(20260929);
+    const rand = (a, b) => a + (b - a) * rng();
+
+    /* =====================================================================
+       Renderers, scene, camera
+       ===================================================================== */
+    const canvas = document.getElementById('webgl');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    // the background is a photograph: keep its colours untouched
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const cssRenderer = new CSS3DRenderer();
+    cssRenderer.setSize(innerWidth, innerHeight);
+    document.getElementById('css3d').appendChild(cssRenderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#15110d');
+    const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.1, 400);
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.38, 0.75, 0.82);
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+    const smaa = new SMAAPass(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
+    composer.addPass(smaa);
+
+    /* =====================================================================
+       Background: the cabin photo split in two depth layers.
+       - far  : the forest seen through the window
+       - near : the room (frames, sofa, table) with the window cut out
+       Both are placed so they line up exactly from the resting camera; when
+       the camera moves they slide at different speeds → real parallax.
+       ===================================================================== */
+    const texLoader = new THREE.TextureLoader();
+    const loadTex = url => new Promise(res => texLoader.load(url, t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); res(t); }, undefined, () => res(null)));
+
+    const IMG = { w: 1456, h: 832 };            // source photo size (px)
+    const FOCUS = { x: 690, y: 330, span: 900 }; // point of the photo framed at rest + its visible width at 16:10
+    const DEPTH = { far: 36, near: 9.5 };        // distance from the camera (m)
+    const bgRoot = new THREE.Group();
+    const bgLayers = new THREE.Group();
+    bgRoot.add(bgLayers);
+    scene.add(bgRoot);
+
+    // photo px → local coordinates on the layer at distance d (before cover scaling)
+    const imgW = d => 2 * d * Math.tan(THREE.MathUtils.degToRad(23)) * 1.6 * IMG.w / FOCUS.span;
+    const imgToLocal = (px, py, d) => {
+      const w = imgW(d), h = w * IMG.h / IMG.w;
+      return new THREE.Vector3((px - FOCUS.x) / IMG.w * w, -(py - FOCUS.y) / IMG.h * h, -d);
+    };
+    function makeLayer(tex, d, opts) {
+      const w = imgW(d), h = w * IMG.h / IMG.w;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, ...opts }));
+      m.position.copy(imgToLocal(IMG.w / 2, IMG.h / 2, d));
+      bgLayers.add(m);
+      return m;
+    }
+    const bgReady = Promise.all([loadTex('assets/bg-far.webp'), loadTex('assets/bg-near.webp'), loadTex('assets/bg-cabin.jpg')]).then(([far, near, env]) => {
+      if (far) makeLayer(far, DEPTH.far, {}).renderOrder = -2;
+      // alphaTest keeps the room opaque, so the frosted glass refracts it too
+      if (near) makeLayer(near, DEPTH.near, { alphaTest: 0.5 }).renderOrder = -1;
+      if (env) {
+        env.mapping = THREE.EquirectangularReflectionMapping;
+        const pm = new THREE.PMREMGenerator(renderer);
+        scene.environment = pm.fromEquirectangular(env).texture;
+        pm.dispose();
+      }
+    });
+
+    // make the layers cover the whole frustum (+ room to look around)
+    function fitBackground() {
+      const d = DEPTH.far, visH = 2 * d * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), visW = visH * camera.aspect;
+      const w = imgW(d), h = w * IMG.h / IMG.w;
+      const s = Math.max(1, (visW * 1.45) / w, (visH * 1.35) / h);
+      bgLayers.scale.set(s, s, 1); // scale across the view axis only, so both layers stay aligned
+    }
+
+    /* ---------------- Volumetric light: sun glow + shafts from the window ---------------- */
+    const rayMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      uniforms: { uTime: { value: 0 }, uSeed: { value: 0 }, uInt: { value: 0.1 } },
+      vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+      fragmentShader: `
+        uniform float uTime, uSeed, uInt; varying vec2 vUv;
+        void main(){
+          float across = pow(sin(vUv.x * 3.14159), 2.4);
+          float along = smoothstep(0.0, 0.55, vUv.y) * smoothstep(1.0, 0.9, vUv.y);
+          float streak = 0.6 + 0.4 * sin(vUv.x * 13.0 + uSeed * 9.0 + uTime * 0.12);
+          float flicker = 0.78 + 0.22 * sin(uTime * 0.33 + uSeed * 6.2831);
+          float a = across * along * streak * flicker * uInt;
+          gl_FragColor = vec4(vec3(1.0, 0.8, 0.52), a);
+        }`,
+    });
+    const rays = [];
+    function addRay(from, to, width, intensity) {
+      const len = from.distanceTo(to);
+      const mat = rayMat.clone(); mat.uniforms.uSeed.value = rng(); mat.uniforms.uInt.value = intensity;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(width, len), mat);
+      const yAxis = from.clone().sub(to).normalize();           // +y towards the light source
+      const xAxis = new THREE.Vector3().crossVectors(yAxis, new THREE.Vector3(0, 0, 1)).normalize();
+      const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
+      m.matrixAutoUpdate = false;
+      m.matrix.makeBasis(xAxis, yAxis, zAxis).setPosition(from.clone().add(to).multiplyScalar(0.5));
+      m.renderOrder = 2;
+      bgLayers.add(m); rays.push(mat);
+    }
+    {
+      // shafts entering through the sliding window on the right, falling onto the sofa
+      const d = 7.5;
+      for (let i = 0; i < 7; i++) {
+        const from = imgToLocal(1180 + i * 32, 110 + i * 22, d);
+        const to = imgToLocal(760 + i * 70 + rand(-30, 30), 700 + rand(-40, 40), d);
+        addRay(from, to, rand(0.35, 0.9), rand(0.03, 0.07));
+      }
+      // softer shafts through the trees in the main window
+      const d2 = 20;
+      for (let i = 0; i < 5; i++) {
+        const from = imgToLocal(930 + rand(-40, 40), 150, d2);
+        const to = imgToLocal(520 + i * 90, 560, d2);
+        addRay(from, to, rand(1.2, 2.6), rand(0.04, 0.08));
+      }
+    }
+    // warm glow on the sun behind the pines
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+      fragmentShader: `uniform float uTime; varying vec2 vUv;
+        void main(){ float d = length(vUv - .5) * 2.; float a = pow(max(0., 1. - d), 2.6) * (0.32 + 0.05 * sin(uTime * 0.7));
+        gl_FragColor = vec4(vec3(1., .82, .55) * a, a); }`,
+    }));
+    glow.position.copy(imgToLocal(960, 185, 30));
+    glow.scale.setScalar(18);
+    glow.renderOrder = 1;
+    bgLayers.add(glow);
+
+    /* ---------------- Floating dust in the light ---------------- */
+    const dust = (() => {
+      const count = 420, pos = new Float32Array(count * 3), seed = new Float32Array(count);
+      for (let i = 0; i < count; i++) {
+        pos.set([rand(-4.5, 6), rand(-2.5, 3.2), rand(-7, -1.5)], i * 3); seed[i] = rng() * 100;
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        uniforms: { uTime: { value: 0 }, uPR: { value: renderer.getPixelRatio() } },
+        vertexShader: `
+          attribute float seed; uniform float uTime, uPR; varying float vA;
+          void main(){
+            vec3 p = position;
+            p.x += sin(uTime * 0.13 + seed) * 0.35;
+            p.y += sin(uTime * 0.09 + seed * 1.7) * 0.3;
+            p.z += cos(uTime * 0.11 + seed * 0.7) * 0.3;
+            vec4 mv = modelViewMatrix * vec4(p, 1.);
+            gl_Position = projectionMatrix * mv;
+            gl_PointSize = (0.8 + fract(seed) * 1.6) * uPR * (5.0 / -mv.z);
+            vA = (0.3 + 0.7 * (0.5 + 0.5 * sin(uTime * 0.6 + seed * 3.0))) * smoothstep(-3.0, 3.0, p.x);
+          }`,
+        fragmentShader: `
+          varying float vA;
+          void main(){ float d = length(gl_PointCoord - .5); float a = smoothstep(.5, 0., d) * vA * .5; gl_FragColor = vec4(1., .9, .72, a); }`,
+      });
+      const pts = new THREE.Points(g, mat);
+      pts.renderOrder = 3;
+      bgLayers.add(pts);
+      return mat;
+    })();
+
+    /* =====================================================================
+       Spatial glass panels (WebGL transmission + CSS3D content)
+       ===================================================================== */
+    function roundedRect(w, h, r) {
+      const s = new THREE.Shape(), x = -w / 2, y = -h / 2;
+      s.moveTo(x + r, y);
+      s.lineTo(x + w - r, y); s.absarc(x + w - r, y + r, r, -Math.PI / 2, 0, false);
+      s.lineTo(x + w, y + h - r); s.absarc(x + w - r, y + h - r, r, 0, Math.PI / 2, false);
+      s.lineTo(x + r, y + h); s.absarc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false);
+      s.lineTo(x, y + r); s.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false);
+      return s;
+    }
+
+    // Frosted glass: real refraction/blur of the photo behind (transmission),
+    // a thin clear-coat that reflects the room, bevelled edges that catch the light.
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color: '#f4f1ec', metalness: 0, roughness: 0.42,
+      transmission: 1, thickness: 0.06, ior: 1.45,
+      clearcoat: 1, clearcoatRoughness: 0.18,
+      specularIntensity: 0.6, envMapIntensity: 0.9,
+      transparent: true, opacity: 0, depthWrite: false,
+    });
+    const BEVEL = 0.014, THICK = 0.02;
+    function glassGeometry(w, h, r) {
+      const g = new THREE.ExtrudeGeometry(roundedRect(w - BEVEL * 2, h - BEVEL * 2, Math.max(0.01, r - BEVEL)), {
+        depth: THICK, bevelEnabled: true, bevelThickness: BEVEL, bevelSize: BEVEL, bevelSegments: 5, curveSegments: 14,
+      });
+      g.translate(0, 0, -(THICK + BEVEL)); // front face sits right behind the HTML content
+      return g;
+    }
+
+    // soft contact shadow that each window casts on the room behind it
+    const shadowTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 256;
+      const g = c.getContext('2d'), gr = g.createRadialGradient(128, 128, 20, 128, 128, 128);
+      gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.55, 'rgba(0,0,0,.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+      return new THREE.CanvasTexture(c);
+    })();
+
+    const panels = [];
+    const P = {};
+    function createPanel(key) {
+      const el = document.getElementById('p-' + key);
+      el.style.opacity = 0;
+      const group = new THREE.Group();
+      const mat = glassMat.clone();
+      const mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat);
+      mesh.renderOrder = 10;
+      const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, opacity: 0, depthWrite: false });
+      const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), shadowMat);
+      shadow.renderOrder = 4;
+      const css = new CSS3DObject(el);
+      group.add(shadow, mesh, css);
+      group.visible = css.visible = false;
+      scene.add(group);
+      const p = {
+        key, el, group, mesh, css, mat, shadow, shadowMat,
+        target: 0, appear: 0, showAt: 0, size: '',
+        base: new THREE.Vector3(), rot: new THREE.Euler(), phase: rng() * 6,
+        layout(w, h, r, s) {
+          el.style.width = w + 'px'; el.style.height = h + 'px';
+          el.style.setProperty('--r', r + 'px');
+          css.scale.setScalar(s);
+          const sig = [w, h, r, s].join();
+          if (sig === p.size) return;
+          p.size = sig;
+          mesh.geometry.dispose();
+          mesh.geometry = glassGeometry(w * s, h * s, r * s);
+          shadow.scale.set(w * s * 1.25, h * s * 1.35, 1);
+          shadow.position.set(0.05, -0.12, -0.9);
+        },
+      };
+      // pointer-following specular light
+      el.addEventListener('pointermove', e => {
+        const b = el.getBoundingClientRect();
+        el.style.setProperty('--lx', ((e.clientX - b.left) / b.width * 100) + '%');
+        el.style.setProperty('--ly', ((e.clientY - b.top) / b.height * 100) + '%');
+      });
+      panels.push(p); P[key] = p;
+      return p;
+    }
+    ['nav', 'home', 'projects', 'media', 'info', 'notes', 'pmain', 'pphoto', 'career', 'contact', 'dock'].forEach(createPanel);
+
+    /* ---------------- Desktop composition (px sizes, world positions) ---------------- */
+    const DESK = {
+      nav:      { w: 190,  h: 184, r: 30, pos: [-3.28, 1.98, 0.2],  rot: [0, 0.3, 0] },
+      dock:     { w: 450,  h: 58,  r: 29, pos: [0.02, 0.34, 0.3],   rot: [-0.06, 0, 0] },
+      home:     { w: 960,  h: 650, r: 34, pos: [0, 2.12, -0.2] },
+      projects: { w: 1000, h: 640, r: 34, pos: [0, 2.12, -0.2] },
+      notes:    { w: 480,  h: 650, r: 34, pos: [3.88, 2.18, 0.4],   rot: [0, -0.42, 0] },
+      media:    { w: 1000, h: 330, r: 30, pos: [0, 3.03, -0.2] },
+      info:     { w: 1000, h: 320, r: 30, pos: [0, 1.3, -0.1] },
+      pmain:    { w: 900,  h: 520, r: 34, pos: [-0.4, 2.05, -0.2] },
+      pphoto:   { w: 400,  h: 470, r: 28, pos: [3.55, 2.15, 0.25],  rot: [0, -0.32, 0] },
+      career:   { w: 1080, h: 700, r: 34, pos: [0, 2.25, -0.2] },
+      contact:  { w: 1000, h: 600, r: 30, pos: [0, 2.1, -0.2] },
+    };
+    const VIEWS = {
+      home: ['home', 'notes'],
+      projects: ['projects', 'notes'],
+      project: ['media', 'info', 'notes'],
+      personal: ['pmain', 'pphoto'],
+      career: ['career'],
+      contact: ['contact'],
+    };
+
+    /* =====================================================================
+       Panel content
+       ===================================================================== */
+    const ICONS = {
+      home: '<path d="M12 3.5 4 9v11h5.5v-6h5v6H20V9z"/>',
+      projects: '<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/>',
+      personal: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20.5c.8-3.8 3.6-6 7-6s6.2 2.2 7 6"/>',
+      career: '<path d="M3 18a9 9 0 0 1 18 0"/><path d="M7 18a5 5 0 0 1 10 0"/><path d="M12 5V3M4.5 8.5 3 7M19.5 8.5 21 7"/><path d="M2 21h20"/>',
+      contact: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+      cap: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2.5 9 2.5 12 0v-5"/>',
+      bag: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12h18"/>',
+      cal: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+      down: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+    };
+    const svg = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
+    const NAV_ITEMS = [['home', 'Home'], ['projects', 'Projects'], ['personal', 'Personal'], ['career', 'Career'], ['contact', 'Contact']];
+    const navHTML = NAV_ITEMS.map(([k, l]) => `<button data-view="${k}">${svg(k)}<span>${l}</span></button>`).join('');
+    P.nav.el.innerHTML = navHTML;
+    document.getElementById('tabbar').innerHTML = navHTML;
+
+    const TILES = {
+      world: () => `<canvas data-art="world"></canvas><div class="world-label">ECE<br>WORLD<small>A pixel-art arcade game about our school campus.</small></div>`,
+      hanoi: () => `<div class="tag"><i></i>Travel</div><h3>Hanoi</h3><p>My exchange student trip: Vietnam, China and Korea — vlogs, junkbook and memories.</p><div class="minivlog">MINI VLOG<small>AESTHETIC</small></div><div class="play"></div>`,
+      rover: () => `<canvas data-art="rover"></canvas><div class="rover-title">ECE CUP Rover project</div>`,
+      devapp: () => ART.html('devappCover'),
+      gyrobot: () => `<canvas data-art="gyrobotTile"></canvas><div class="gyro-title">GYROBOT</div>`,
+      trail: () => `<canvas data-art="trailTile"></canvas><div class="trail-title">30 Days<br>40Km Trail<br>Challenge</div>`,
+    };
+    const tile = key => {
+      const pr = DATA.projects[key];
+      const cover = pr.cover ? ` data-img="${pr.cover}"` : '';
+      return `<article class="tile t-${pr.tile}" data-project="${key}"${cover} tabindex="0" role="button" aria-label="${pr.mediaTitle}">${TILES[pr.tile] ? TILES[pr.tile]() : ''}</article>`;
+    };
+
+    function renderHome() {
+      const [a, b, c, d] = DATA.homeTiles;
+      P.home.el.innerHTML = `
+        <div class="profile">
+          <div class="avatar" aria-hidden="true">🧑🏻‍💻</div>
+          <div class="kicker">Engineer Student Portfolio</div>
+          <h1>${DATA.personal.name}</h1>
+          <div class="city">${DATA.personal.city}</div>
+          <button class="pill-btn" data-view="personal">See more</button>
+        </div>
+        ${tile(a)}${tile(b)}
+        <div class="bottom-row">${tile(c)}${tile(d)}</div>`;
+    }
+    function renderProjects() {
+      P.projects.el.innerHTML = `<div class="grid-head">My projects</div>
+        <div class="pgrid n${Object.keys(DATA.projects).length}">${Object.keys(DATA.projects).map(tile).join('')}</div>`;
+    }
+
+    function mediaItem(it) {
+      if (it.row) return `<div class="mrow">${it.row.map(mediaItem).join('')}</div>`;
+      const tag = it.href ? 'a' : 'figure';
+      const attrs = it.href ? ` href="${it.href}" target="_blank" rel="noopener" title="${it.play}"` : '';
+      return `<${tag} class="media${it.clear ? ' clear' : ''}${it.pixel ? ' pixel' : ''}${it.href ? ' playable' : ''}"${attrs} ${it.img ? ` data-img="${it.img}"` : ''} style="flex:${it.grow || 1}">
+        ${it.html ? ART.html(it.html) : it.art ? `<canvas data-art="${it.art}"></canvas>` : ''}
+        ${it.label ? `<div class="world-label">${it.label}</div>` : ''}
+        ${it.play ? `<span class="play-badge"><b>▶</b>${it.play}</span>` : ''}
+      </${tag}>`;
+    }
+    const mediaHTML = pr => `
+      <header class="media-head"><h2>${pr.mediaTitle}</h2>${pr.live ? `<a class="live" href="${pr.live}" target="_blank" rel="noopener">View live site ›</a>` : ''}</header>
+      <div class="media-row">${pr.media.map(col => `<div class="mcol" style="flex:${col.flex}">${col.items.map(mediaItem).join('')}</div>`).join('')}</div>`;
+    const infoHTML = pr => `
+      <header class="info-head"><h2>${pr.title}</h2><div class="pills">${pr.tags.map(t => `<span><i></i>${t}</span>`).join('')}</div></header>
+      <div class="info-body${pr.centered ? ' centered' : ''}"${pr.textSize ? ` style="font-size:${pr.textSize}px"` : ''}>${pr.text}</div>`;
+
+    function renderPersonal() {
+      const d = DATA.personal;
+      P.pmain.el.innerHTML = `
+        <div class="id-card"><span>${d.city}</span><h2>${d.name}</h2><time>${d.birth}</time></div>
+        <p class="bio">${d.text}</p>`;
+      P.pphoto.el.innerHTML = `<figure class="media photo-frame" data-img="${d.photo}"><canvas data-art="greatWall"></canvas></figure>`;
+    }
+    function renderCareer() {
+      const d = DATA.career;
+      // each step is a "square" you can click to read the details
+      const steps = list => list.map(s => `
+        <button class="step" aria-expanded="false">
+          <small>${svg('cal')}${s.date}</small><b>${s.title}</b><span>${s.place}</span>
+          <ul>${(s.details || []).map(t => `<li>${t}</li>`).join('')}</ul>
+        </button>`).join('');
+      P.career.el.innerHTML = `
+        <div class="career-head"><canvas data-art="room"></canvas>
+          <div class="ch-txt">
+            <h2>${d.title} <em>${d.role}</em></h2>
+            <p>${d.intro}</p>
+            <p class="seeking">🎯 ${d.seeking}</p>
+          </div>
+          <a class="cv-btn" href="${d.cv}" target="_blank" rel="noopener">${svg('down')}Download CV</a>
+        </div>
+        <div class="career-body">
+          <div class="col"><h3>${svg('cap')}Education</h3>${steps(d.education)}</div>
+          <div class="col"><h3>${svg('bag')}Work</h3>${steps(d.work)}</div>
+        </div>
+        <div class="career-foot">
+          <div><h4>Skills</h4><div class="chips">${d.skills.map(t => `<span>${t}</span>`).join('')}</div></div>
+          <div><h4>Awards &amp; certifications</h4><div class="chips awards">${d.awards.map(t => `<span>${t}</span>`).join('')}</div></div>
+        </div>`;
+      P.career.el.querySelectorAll('.step').forEach(b => b.addEventListener('click', () => {
+        const open = !b.classList.contains('open');
+        P.career.el.querySelectorAll('.step.open').forEach(o => { o.classList.remove('open'); o.setAttribute('aria-expanded', 'false'); });
+        b.classList.toggle('open', open); b.setAttribute('aria-expanded', String(open));
+        if (view.portrait) layout();
+      }));
+    }
+    function renderContact() {
+      const d = DATA.contact;
+      P.contact.el.innerHTML = `
+        <div class="contact-bar"><button class="back" data-view="home" aria-label="Back to home">‹</button><h2>Contact</h2><span class="c-avatar" aria-hidden="true"></span></div>
+        <div class="contact-hero"><canvas data-art="aurora"></canvas>
+          <div class="hero-txt"><h3>${d.title}</h3><p>${d.text}</p>
+            <div class="btns"><a class="btn-w" data-link="email">Email</a><a class="btn-o" data-link="phone">Phone</a></div>
+          </div>
+        </div>`;
+    }
+    function applyLinks(root) {
+      root.querySelectorAll('[data-link]').forEach(a => { a.href = DATA.links[a.dataset.link]; });
+    }
+
+    renderHome(); renderProjects(); renderPersonal(); renderCareer(); renderContact();
+    applyLinks(document);
+
+    /* Swap the content of a panel; fades it if the panel is on screen. */
+    function setContent(p, html, done) {
+      const apply = () => { p.el.innerHTML = html; applyLinks(p.el); done && done(); };
+      if (p.appear > 0.5 && p.target === 1) {
+        p.el.classList.add('swapping');
+        setTimeout(() => { apply(); p.el.classList.remove('swapping'); }, 220);
+      } else apply();
+    }
+    const noteBody = document.getElementById('note-body');
+    let currentNote = '';
+    function setNote(key) {
+      if (currentNote === key) return;
+      currentNote = key;
+      const html = DATA.notes[key];
+      if (P.notes.appear > 0.5 && P.notes.target === 1) {
+        noteBody.classList.add('swap');
+        setTimeout(() => { noteBody.innerHTML = html; noteBody.scrollTop = 0; noteBody.classList.remove('swap'); if (view.portrait) layout(); }, 220);
+      } else noteBody.innerHTML = html;
+    }
+
+    /* =====================================================================
+       Views & routing (#/home, #/projects, #/project/world, #/career …)
+       ===================================================================== */
+    const view = { name: '', arg: '', base: new THREE.Vector3(), target: new THREE.Vector3(), portrait: false, scroll: 0, scrollMax: 0 };
+    let clockTime = 0;
+
+    function showView(name, arg = '') {
+      if (!VIEWS[name] || (name === 'project' && !DATA.projects[arg])) { name = 'home'; arg = ''; }
+      if (view.name === name && view.arg === arg) return;
+      const wasShown = new Set(panels.filter(p => p.target === 1).map(p => p.key));
+      view.name = name; view.arg = arg;
+
+      const active = new Set(VIEWS[name]);
+      active.add('dock'); active.add('nav');
+      let i = 0;
+      for (const p of panels) {
+        const on = active.has(p.key);
+        if (on && !wasShown.has(p.key)) { p.showAt = clockTime + 0.22 + 0.08 * i++; p.group.visible = p.css.visible = true; p.el.style.display = ''; }
+        p.target = on ? 1 : 0;
+      }
+
+      if (name === 'project') {
+        const pr = DATA.projects[arg];
+        const refresh = () => { if (view.portrait) layout(); ART.paint(P.media.el); };
+        setContent(P.media, mediaHTML(pr), refresh);
+        setContent(P.info, infoHTML(pr), layout);
+        setNote('discover');
+      } else if (name === 'home' || name === 'projects') setNote('home');
+
+      const navKey = name === 'project' ? 'projects' : name;
+      document.querySelectorAll('[data-view]').forEach(b => { if (b.closest('.nav, .tabbar')) b.classList.toggle('active', b.dataset.view === navKey); });
+      view.scroll = 0;
+      layout();
+      for (const k of VIEWS[name]) ART.paint(P[k].el);
+    }
+
+    function route() {
+      const [, name = 'home', arg = ''] = location.hash.replace(/^#\/?/, '#/').split('/');
+      showView(name || 'home', decodeURIComponent(arg));
+    }
+    const go = (name, arg) => {
+      const h = '#/' + name + (arg ? '/' + encodeURIComponent(arg) : '');
+      if (location.hash === h) route(); else location.hash = h;
+    };
+    addEventListener('hashchange', route);
+
+    document.addEventListener('click', e => {
+      const v = e.target.closest('[data-view]');
+      if (v) { e.preventDefault(); go(v.dataset.view); return; }
+      const t = e.target.closest('[data-project]');
+      if (t) go('project', t.dataset.project);
+    });
+    document.addEventListener('keydown', e => {
+      const t = e.target.closest && e.target.closest('[data-project]');
+      if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); go('project', t.dataset.project); }
+    });
+
+    /* ---------------- Layout (desktop / portrait) ---------------- */
+    function layout() {
+      const aspect = innerWidth / innerHeight;
+      view.portrait = aspect < 0.95;
+      document.body.classList.toggle('portrait', view.portrait);
+      P.nav.target = view.portrait ? 0 : 1;
+
+      if (!view.portrait) {
+        const s = 0.005;
+        for (const [k, c] of Object.entries(DESK)) {
+          P[k].layout(c.w, c.h, c.r, s);
+          P[k].base.set(...c.pos); P[k].rot.set(...(c.rot || [0, 0, 0]));
+        }
+        // project view: the description window grows with its text (no inner scroll),
+        // and media + description + dock are re-centred to stay in frame
+        if (view.name === 'project') {
+          const info = P.info;
+          info.el.style.display = ''; // may still be hidden while fading in
+          info.el.style.height = 'auto';
+          const h = THREE.MathUtils.clamp(Math.ceil(info.el.offsetHeight), 300, 640);
+          info.layout(DESK.info.w, h, DESK.info.r, s);
+          const mediaH = DESK.media.h * s, infoH = h * s, dockH = DESK.dock.h * s, gap = 0.1, dockGap = 0.14;
+          const top = 2.0 + (mediaH + gap + infoH + dockGap + dockH) / 2;
+          P.media.base.y = top - mediaH / 2;
+          info.base.y = top - mediaH - gap - infoH / 2;
+          P.dock.base.y = Math.min(DESK.dock.pos[1], top - mediaH - gap - infoH - dockGap - dockH / 2);
+        }
+        view.base.set(0, 2.2, 5.6); view.target.set(0, 2.0, -0.2);
+        // keep the whole composition in frame on narrower screens
+        const halfW = 4.15, dist = 5.8;
+        const vfov = 2 * Math.atan(halfW / dist / aspect) * 180 / Math.PI;
+        camera.fov = THREE.MathUtils.clamp(Math.max(46, vfov), 46, 78);
+        view.scrollMax = 0;
+      } else {
+        const s = 0.0085, W = 380, gap = 0.3, dist = 5.4, halfW = 1.85;
+        camera.fov = 2 * Math.atan(halfW / aspect / dist) * 180 / Math.PI;
+        const halfH = dist * Math.tan(camera.fov * Math.PI / 360);
+        view.base.set(0, 2.2, dist); view.target.set(0, 2.2, 0);
+        let y = 2.2 + halfH - 0.35;
+        const top = y;
+        for (const k of [...VIEWS[view.name || 'home'], 'dock']) {
+          const p = P[k];
+          p.el.style.display = '';
+          p.el.style.width = W + 'px'; p.el.style.height = 'auto';
+          const h = Math.ceil(p.el.offsetHeight);
+          p.layout(W, h, k === 'dock' ? 28 : 26, s);
+          const hm = h * s;
+          p.base.set(0, y - hm / 2, 0); p.rot.set(0, 0, 0);
+          y -= hm + gap;
+        }
+        // leave room for the bottom tab bar
+        const tabbarWorld = (110 / innerHeight) * halfH * 2;
+        view.scrollMax = Math.max(0, (top - y) - halfH * 2 + 0.5 + tabbarWorld);
+        view.scroll = Math.min(view.scroll, view.scrollMax);
+      }
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+      // the photo layers are framed from the resting camera
+      bgRoot.quaternion.setFromRotationMatrix(new THREE.Matrix4().lookAt(view.base, view.target, new THREE.Vector3(0, 1, 0)));
+      fitBackground();
+      // only reallocate GPU buffers when the viewport really changed
+      const pr = Math.min(devicePixelRatio, view.portrait ? 1.5 : 2);
+      const sig = [innerWidth, innerHeight, pr].join();
+      if (sig !== sizeSig) {
+        sizeSig = sig;
+        renderer.setPixelRatio(pr);
+        composer.setPixelRatio(pr);
+        renderer.setSize(innerWidth, innerHeight);
+        composer.setSize(innerWidth, innerHeight);
+        cssRenderer.setSize(innerWidth, innerHeight);
+        dust.uniforms.uPR.value = pr;
+      }
+    }
+    let sizeSig = '';
+    // survive a GPU reset instead of leaving a dead canvas
+    canvas.addEventListener('webglcontextlost', e => e.preventDefault());
+    canvas.addEventListener('webglcontextrestored', () => { sizeSig = ''; layout(); });
+    let wasPortrait = null;
+    addEventListener('resize', () => {
+      layout();
+      if (wasPortrait !== view.portrait) { for (const k of VIEWS[view.name]) ART.paint(P[k].el); wasPortrait = view.portrait; }
+    });
+
+    /* =====================================================================
+       Input
+       ===================================================================== */
+    const mouse = new THREE.Vector2(), smooth = new THREE.Vector2(), still = new THREE.Vector2();
+    addEventListener('pointermove', e => {
+      if (e.pointerType === 'touch') return;
+      mouse.set(e.clientX / innerWidth * 2 - 1, e.clientY / innerHeight * 2 - 1);
+    });
+    document.addEventListener('mouseleave', () => mouse.set(0, 0));
+
+    // portrait: scroll the camera down the stack of windows
+    addEventListener('wheel', e => {
+      if (!view.portrait) return;
+      view.scroll = THREE.MathUtils.clamp(view.scroll + e.deltaY * 0.004, 0, view.scrollMax);
+    }, { passive: true });
+    let touchY = null;
+    addEventListener('touchstart', e => { touchY = e.touches[0].clientY; }, { passive: true });
+    addEventListener('touchmove', e => {
+      if (!view.portrait || touchY === null) return;
+      const y = e.touches[0].clientY;
+      const halfH = 5.4 * Math.tan(camera.fov * Math.PI / 360);
+      view.scroll = THREE.MathUtils.clamp(view.scroll + (touchY - y) / innerHeight * halfH * 2, 0, view.scrollMax);
+      touchY = y;
+    }, { passive: true });
+
+    /* =====================================================================
+       Loop
+       ===================================================================== */
+    const clock = new THREE.Clock();
+    const scrollSmooth = { v: 0 };
+    let started = false;
+    const ease = t => 1 - Math.pow(1 - t, 3);
+
+    function tick() {
+      const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+      clockTime = t;
+      smooth.lerp(view.portrait ? still : mouse, 1 - Math.exp(-dt * 2.6));
+      scrollSmooth.v += (view.scroll - scrollSmooth.v) * (1 - Math.exp(-dt * 6));
+
+      // look-around like the original: the view turns TOWARDS the pointer,
+      // with a small head movement so the photo layers and windows parallax
+      camera.position.set(view.base.x + smooth.x * 0.45, view.base.y - smooth.y * 0.22 - scrollSmooth.v, view.base.z);
+      camera.lookAt(view.target.x + smooth.x * 1.35, view.target.y - smooth.y * 0.65 - scrollSmooth.v, view.target.z);
+      bgRoot.position.set(view.base.x, view.base.y - scrollSmooth.v, view.base.z);
+
+      for (const p of panels) {
+        if (started) {
+          if (p.target === 1 && t >= p.showAt) p.appear = Math.min(1, p.appear + dt / 0.6);
+          else if (p.target === 0) p.appear = Math.max(0, p.appear - dt / 0.3);
+        }
+        const a = ease(p.appear);
+        const vis = p.appear > 0.001;
+        if (p.group.visible !== vis) p.group.visible = p.css.visible = vis;
+        if (!vis) continue;
+        p.group.position.set(p.base.x, p.base.y + Math.sin(t * 0.7 + p.phase) * 0.018 - (1 - a) * 0.25, p.base.z - (1 - a) * 0.6);
+        p.group.rotation.copy(p.rot);
+        p.group.scale.setScalar(0.92 + 0.08 * a);
+        p.mat.opacity = a;
+        p.shadowMat.opacity = a * 0.32;
+        const op = a.toFixed(3);
+        if (p.el.style.opacity !== op) p.el.style.opacity = op;
+        const pe = p.target === 1 && a > 0.5 ? 'auto' : 'none';
+        if (p.el.style.pointerEvents !== pe) p.el.style.pointerEvents = pe;
+      }
+
+      for (const m of rays) m.uniforms.uTime.value = t;
+      dust.uniforms.uTime.value = t;
+      glow.material.uniforms.uTime.value = t;
+
+      composer.render();
+      cssRenderer.render(scene, camera);
+      requestAnimationFrame(tick);
+    }
+
+    route();
+    wasPortrait = view.portrait;
+    tick();
+
+    // reveal once fonts are ready (canvas art uses the web fonts)
+    Promise.race([Promise.all([document.fonts.ready, bgReady]), new Promise(r => setTimeout(r, 6000))]).then(() => {
+      for (const k of VIEWS[view.name]) ART.paint(P[k].el);
+      layout(); // re-measure now that the web fonts are loaded
+      setTimeout(() => {
+        document.getElementById('loader').classList.add('done');
+        started = true;
+        const t0 = clockTime;
+        panels.filter(p => p.target === 1).forEach((p, i) => { p.showAt = t0 + 0.3 + i * 0.12; });
+      }, 350);
+    });
+  </script>
+</body>
+</html>
