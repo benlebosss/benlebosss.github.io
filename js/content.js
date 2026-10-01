@@ -61,6 +61,7 @@ window.PORTFOLIO = {
       title: 'Personal Development App',
       tags: ['React Native', 'UX', 'Gamification', '2025'],
       live: 'https://getlvlup.github.io/',
+      sticker: true, // shows the 3D "CLICK HERE!!!" sticker next to the link
       media: [
         { flex: 1.35, items: [{ html: 'devappScreen', img: 'assets/devapp-1.png' }] },
         { flex: 1, items: [{ html: 'devappCover', img: 'assets/devapp-2.webp' }] },
@@ -113,6 +114,7 @@ window.PORTFOLIO = {
       title: 'University Exchange &nbsp;Trip vlog',
       tags: ['HTML', 'CSS', 'JavaScript', 'Video'],
       live: 'https://mytraveldiary.github.io/',
+      sticker: true, // shows the 3D "CLICK HERE!!!" sticker next to the link
       centered: true,
       media: [
         { flex: 1, items: [{ art: 'knu', img: 'assets/vlog-1.webp', clear: true, grow: 3.2 }, { img: 'assets/vlog-logo.png', clear: true }] },
