@@ -26,13 +26,18 @@
   <div class="vignette"></div>
 
   <div class="loader" id="loader"><span>Loading</span></div>
-  <a class="badge" href="https://threejs.org" target="_blank" rel="noopener"><i></i>Built with Three.js</a>
+  <div class="zoombox" id="zoombox" hidden><img alt="" /><button aria-label="Close">✕</button></div>
 
   <!-- Navigation used on phones: fixed at the bottom of the screen -->
   <nav class="tabbar" id="tabbar" aria-label="Main"></nav>
 
   <!-- ============ Panels (moved into 3D space by CSS3DRenderer) ============ -->
   <div id="panel-sources">
+    <button class="click3d" id="click3d" data-view="projects" aria-label="Click here to see my projects">
+      <span class="c3d-burst"></span>
+      <span class="c3d-text"><b>CLICK</b><b>HERE<i>!!!</i></b></span>
+      <span class="c3d-arrow">➜</span>
+    </button>
     <nav class="panel glass nav" id="p-nav" aria-label="Main"></nav>
     <section class="panel glass center" id="p-home"></section>
     <section class="panel glass grid-panel" id="p-projects"></section>
@@ -507,6 +512,12 @@
     const view = { name: '', arg: '', base: new THREE.Vector3(), target: new THREE.Vector3(), portrait: false, scroll: 0, scrollMax: 0 };
     let clockTime = 0;
 
+    /* "CLICK HERE!!!" 3D sticker floating next to the home window */
+    const sticker3d = new CSS3DObject(document.getElementById('click3d'));
+    sticker3d.scale.setScalar(0.005);
+    scene.add(sticker3d);
+    const STICKER = { pos: new THREE.Vector3(2.05, 3.72, 0.35), show: 0 };
+
     function showView(name, arg = '') {
       if (!VIEWS[name] || (name === 'project' && !DATA.projects[arg])) { name = 'home'; arg = ''; }
       if (view.name === name && view.arg === arg) return;
@@ -547,7 +558,12 @@
     };
     addEventListener('hashchange', route);
 
+    const zoombox = document.getElementById('zoombox');
+    zoombox.addEventListener('click', () => { zoombox.hidden = true; });
+    addEventListener('keydown', e => { if (e.key === 'Escape') zoombox.hidden = true; });
     document.addEventListener('click', e => {
+      const ph = e.target.closest('figure.media.has-photo');
+      if (ph) { zoombox.querySelector('img').src = ph.querySelector('img.photo').src; zoombox.hidden = false; return; }
       const v = e.target.closest('[data-view]');
       if (v) { e.preventDefault(); go(v.dataset.view); return; }
       const t = e.target.closest('[data-project]');
@@ -727,6 +743,17 @@
         if (p.el.style.pointerEvents !== pe) p.el.style.pointerEvents = pe;
       }
 
+      // sticker: only on the home view (desktop), wobbling in 3D
+      {
+        const want = started && view.name === 'home' && !view.portrait && t > 1.6 ? 1 : 0;
+        STICKER.show += (want - STICKER.show) * (1 - Math.exp(-dt * 5));
+        const k = STICKER.show, el = sticker3d.element;
+        sticker3d.visible = k > 0.01;
+        sticker3d.position.set(STICKER.pos.x, STICKER.pos.y + Math.sin(t * 1.6) * 0.05 - (1 - k) * 0.3, STICKER.pos.z);
+        sticker3d.rotation.set(Math.sin(t * 1.1) * 0.12, -0.35 + Math.sin(t * 0.8) * 0.28, 0.16 + Math.sin(t * 1.3) * 0.05);
+        sticker3d.scale.setScalar(0.005 * (0.6 + 0.4 * k));
+        el.style.opacity = k.toFixed(3); el.style.pointerEvents = k > 0.5 ? 'auto' : 'none';
+      }
       for (const m of rays) m.uniforms.uTime.value = t;
       dust.uniforms.uTime.value = t;
       glow.material.uniforms.uTime.value = t;
