@@ -33,7 +33,7 @@
 
   <!-- ============ Panels (moved into 3D space by CSS3DRenderer) ============ -->
   <div id="panel-sources">
-    <button class="click3d" id="click3d" data-view="projects" aria-label="Click here to see my projects">
+    <button class="click3d" id="click3d" aria-label="Click here to open the live site">
       <span class="c3d-burst"></span>
       <span class="c3d-text"><b>CLICK</b><b>HERE<i>!!!</i></b></span>
       <span class="c3d-arrow">➜</span>
@@ -514,9 +514,12 @@
 
     /* "CLICK HERE!!!" 3D sticker floating next to the home window */
     const sticker3d = new CSS3DObject(document.getElementById('click3d'));
-    sticker3d.scale.setScalar(0.005);
+    sticker3d.scale.setScalar(0.0028);
     scene.add(sticker3d);
-    const STICKER = { pos: new THREE.Vector3(2.05, 3.72, 0.35), show: 0 };
+    const STICKER = { show: 0, size: 0.0028 };
+    // only on projects that have a site to visit (sticker: true in js/content.js)
+    const stickerProject = () => view.name === 'project' && DATA.projects[view.arg] && DATA.projects[view.arg].sticker ? DATA.projects[view.arg] : null;
+    sticker3d.element.addEventListener('click', () => { const pr = stickerProject(); if (pr && pr.live) window.open(pr.live, '_blank', 'noopener'); });
 
     function showView(name, arg = '') {
       if (!VIEWS[name] || (name === 'project' && !DATA.projects[arg])) { name = 'home'; arg = ''; }
@@ -745,13 +748,14 @@
 
       // sticker: only on the home view (desktop), wobbling in 3D
       {
-        const want = started && view.name === 'home' && !view.portrait && t > 1.6 ? 1 : 0;
+        const want = started && stickerProject() && !view.portrait ? 1 : 0;
         STICKER.show += (want - STICKER.show) * (1 - Math.exp(-dt * 5));
         const k = STICKER.show, el = sticker3d.element;
         sticker3d.visible = k > 0.01;
-        sticker3d.position.set(STICKER.pos.x, STICKER.pos.y + Math.sin(t * 1.6) * 0.05 - (1 - k) * 0.3, STICKER.pos.z);
+        // floats just above the "View live site" link, top-right corner of the media window
+        sticker3d.position.set(2.42, P.media.base.y + DESK.media.h * 0.0025 + 0.12 + Math.sin(t * 1.6) * 0.03 - (1 - k) * 0.2, 0.2);
         sticker3d.rotation.set(Math.sin(t * 1.1) * 0.12, -0.35 + Math.sin(t * 0.8) * 0.28, 0.16 + Math.sin(t * 1.3) * 0.05);
-        sticker3d.scale.setScalar(0.005 * (0.6 + 0.4 * k));
+        sticker3d.scale.setScalar(STICKER.size * (0.6 + 0.4 * k));
         el.style.opacity = k.toFixed(3); el.style.pointerEvents = k > 0.5 ? 'auto' : 'none';
       }
       for (const m of rays) m.uniforms.uTime.value = t;

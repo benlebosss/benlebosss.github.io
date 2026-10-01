@@ -420,6 +420,6 @@ figure.media.has-photo { cursor: zoom-in; }
   text-shadow: 1px 1px 0 #c2281a, 2px 2px 0 #c2281a, 3px 3px 0 #b02215, 4px 4px 0 #b02215, 5px 5px 0 #9c1d11, 6px 6px 0 #9c1d11, 7px 7px 0 #86170d, 8px 8px 0 #86170d, 10px 12px 14px rgba(0, 0, 0, 0.45);
 }
 .c3d-text i { font-style: normal; color: #ffe45c; }
-.c3d-arrow { position: absolute; left: -6px; bottom: 8px; font-size: 54px; color: #fff; -webkit-text-stroke: 2px #1c1a17; transform: translateZ(60px) rotate(150deg); text-shadow: 3px 3px 0 #b02215, 6px 6px 0 #86170d; animation: c3dPoke 0.9s ease-in-out infinite; }
+.c3d-arrow { position: absolute; left: -2px; bottom: 2px; font-size: 54px; color: #fff; -webkit-text-stroke: 2px #1c1a17; transform: translateZ(60px) rotate(150deg); text-shadow: 3px 3px 0 #b02215, 6px 6px 0 #86170d; animation: c3dPoke 0.9s ease-in-out infinite; }
 @keyframes c3dPoke { 50% { translate: -10px 8px; } }
 .click3d:hover .c3d-text { transform: translateZ(70px) rotate(-6deg) scale(1.08); transition: transform 0.25s cubic-bezier(.3, 1.7, .5, 1); }
