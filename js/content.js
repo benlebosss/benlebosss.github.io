@@ -60,7 +60,7 @@ window.PORTFOLIO = {
       mediaTitle: 'Personal development app',
       title: 'Personal Development App',
       tags: ['React Native', 'UX', 'Gamification', '2025'],
-      live: 'https://travel-react-zeno.netlify.app/',
+      live: 'https://getlvlup.github.io/',
       media: [
         { flex: 1.35, items: [{ html: 'devappScreen', img: 'assets/devapp-1.png' }] },
         { flex: 1, items: [{ html: 'devappCover', img: 'assets/devapp-2.webp' }] },
@@ -112,7 +112,7 @@ window.PORTFOLIO = {
       mediaTitle: 'University trip vlog',
       title: 'University Exchange &nbsp;Trip vlog',
       tags: ['HTML', 'CSS', 'JavaScript', 'Video'],
-      live: '', // old site offline — put the link of the new site here
+      live: 'https://mytraveldiary.github.io/',
       centered: true,
       media: [
         { flex: 1, items: [{ art: 'knu', img: 'assets/vlog-1.webp', clear: true, grow: 3.2 }, { img: 'assets/vlog-logo.png', clear: true }] },
